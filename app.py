@@ -596,12 +596,7 @@ if search_btn:
                    f"🌐 正在跨源多领域检索并审计【{cleaned_zh}】..."
                 ):
 
-                    result_list = fetch_ai_completion(
-                        st.session_state["saved_provider"],
-                        st.session_state["saved_api_key"],
-                        system_prompt,
-                        user_prompt,
-                    )
+                    result_list = [{"使用领域": "test", "推荐译法": "test"}]
 
                     if isinstance(result_list, dict):
                         result_list = [result_list]
