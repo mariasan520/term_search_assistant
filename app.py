@@ -12,6 +12,14 @@ import urllib3
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+def normalize_recommend(val):
+    v = str(val).strip().lower()
+    if v in ["是", "yes", "推荐", "recommended", "行业推荐", "官方推荐"]:
+        return "是"
+    if v in ["否", "no", "不推荐", "not recommended"]:
+        return "否"
+    return "--"
+
 # 🔴 强行关闭控制台的 SSL 禁用警告，让后台日志保持干净
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -596,7 +604,12 @@ if search_btn:
                    f"🌐 正在跨源多领域检索并审计【{cleaned_zh}】..."
                 ):
 
-                    result_list = [{"使用领域": "test", "推荐译法": "test"}]
+                    result_list = fetch_ai_completion(
+                        st.session_state["saved_provider"],
+                        st.session_state["saved_api_key"],
+                        system_prompt,
+                        user_prompt,
+                    )
 
                     if isinstance(result_list, dict):
                         result_list = [result_list]
@@ -738,7 +751,7 @@ if st.session_state["has_searched"] and st.session_state["latest_result"]:
         domain_val = clean_val(
             res.get("使用领域") or st.session_state["form_domain"] or "--"
         )
-        is_rec = clean_val(res.get("是否推荐", "--"))
+        is_rec = normalize_recommend(res.get("是否推荐", "--"))
         rec_trans = clean_english_only(res.get("推荐译法", "--"))
         auth_def = clean_val(res.get("权威定义", "--"))
         bilingual_eg = clean_val(res.get("双语示例", "--"))
@@ -791,55 +804,39 @@ if st.session_state["has_searched"] and st.session_state["latest_result"]:
                 if current_v != "--" and current_v not in val_list:
                     val_list.append(current_v)
 
+    show_verify_col = st.session_state.get("is_verification_mode", False)
     rows_data = []
     clean_zh_display = clean_val(zh_display)
     clean_en_display = clean_val(en_display)
 
     for domain_k, v_dict in merged_records.items():
-        row = {
-            "中文术语": clean_zh_display,
-            "使用领域": domain_k,
-            "是否推荐": (
-                "; ".join([x for x in v_dict["是否推荐"] if x != "--"])
-                or "--"
-            ),
-            "推荐译法": (
-                "; ".join([x for x in v_dict["推荐译法"] if x != "--"])
-                or "--"
-            ),
-            "权威定义": (
-                " \n ".join([x for x in v_dict["权威定义"] if x != "--"])
-                or "--"
-            ),
-            "双语示例": (
-                " \n ".join([x for x in v_dict["双语示例"] if x != "--"])
-                or "--"
-            ),
-            "其它可接受译法": (
-                "; ".join([x for x in v_dict["其它可接受译法"] if x != "--"])
-                or "--"
-            ),
-            "不推荐译法": (
-                "; ".join([x for x in v_dict["不推荐译法"] if x != "--"])
-                or "--"
-            ),
-            "备注说明": (
-                " \n ".join([x for x in v_dict["备注说明"] if x != "--"])
-                or "--"
-            ),
-            "数据来源与链接": (
-                " | ".join([x for x in v_dict["数据来源与链接"] if x != "--"])
-                or "--"
-            ),
-        }
-
         if is_verify_mode:
             row = {
-                "中文术语": row["中文术语"],
-                "输入的英文术语": clean_en_display,
-                **{k: v for k, v in row.items() if k != "中文术语"},
+                "中文术语": clean_zh_display,
+                "使用领域": domain_k,
+                "英文术语": clean_en_display,
+                "是否推荐": ("; ".join([x for x in v_dict["是否推荐"] if x != "--"]) if isinstance(v_dict["是否推荐"], list) else str(v_dict["是否推荐"])) or "--",
+                "推荐译法": "; ".join([x for x in v_dict["推荐译法"] if x != "--"]) or "--",
+                "权威定义": " \n ".join([x for x in v_dict["权威定义"] if x != "--"]) or "--",
+                "双语示例": " \n ".join([x for x in v_dict["双语示例"] if x != "--"]) or "--",
+                "其它可接受译法": "; ".join([x for x in v_dict["其它可接受译法"] if x != "--"]) or "--",
+                "不推荐译法": "; ".join([x for x in v_dict["不推荐译法"] if x != "--"]) or "--",
+                "备注": " \n ".join([x for x in v_dict["备注说明"] if x != "--"]) or "--",
+                "数据来源": " | ".join([x for x in v_dict["数据来源与链接"] if x != "--"]) or "--",
             }
-
+        else:
+            row = {
+                "中文术语": clean_zh_display,
+                "使用领域": domain_k,
+                "推荐译法": "; ".join([x for x in v_dict["推荐译法"] if x != "--"]) or "--",
+                "权威定义": " \n ".join([x for x in v_dict["权威定义"] if x != "--"]) or "--",
+                "双语示例": " \n ".join([x for x in v_dict["双语示例"] if x != "--"]) or "--",
+                "其它可接受译法": "; ".join([x for x in v_dict["其它可接受译法"] if x != "--"]) or "--",
+                "不推荐译法": "; ".join([x for x in v_dict["不推荐译法"] if x != "--"]) or "--",
+                "备注": " \n ".join([x for x in v_dict["备注说明"] if x != "--"]) or "--",
+                "数据来源": " | ".join([x for x in v_dict["数据来源与链接"] if x != "--"]) or "--",
+            }
+            
         rows_data.append(row)
 
     df = pd.DataFrame(rows_data)
